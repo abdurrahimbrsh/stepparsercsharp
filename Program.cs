@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StepParser.ViewModel;
+using System;
 using System.IO;
 using System.Text;
 using System.Xml;
@@ -16,7 +17,8 @@ namespace StepParser
                     string fullPath = Path.GetFullPath(args[0]);
                     string onlyPath = Directory.GetParent(fullPath).FullName;
                     string fileName = Path.GetFileNameWithoutExtension(args[0]);
-                    Console.WriteLine("Loading STP file...");
+                    Console.WriteLine("Loading STP file... " + fileName);
+                    LogWriter.Instance.WriteInfoLog("Loading STP file... " + fileName);
                     StepFile stepFile;
                     using (FileStream fs = new FileStream(fullPath, FileMode.Open))
                     {
@@ -44,15 +46,18 @@ namespace StepParser
                     xmlWriter.Close();
 
                     Console.WriteLine("Success!");
+                    LogWriter.Instance.WriteInfoLog("Success!");
                 }
                 else
                 {
                     Console.WriteLine("File Not Exists");
+                    LogWriter.Instance.WriteInfoLog("File Not Exists");
                 }
             }
             else
             {
                 Console.WriteLine("No STP File found");
+                LogWriter.Instance.WriteInfoLog("No STP File found");
             }
         }
     }
