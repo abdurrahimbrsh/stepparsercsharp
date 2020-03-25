@@ -68,26 +68,11 @@ namespace StepParser.Items
             return new StepLine("", start, vector);
         }
 
-        internal override IEnumerable<StepRepresentationItem> GetReferencedItems()
-        {
-            yield return Point;
-            yield return Vector;
-        }
-
-        internal override IEnumerable<StepSyntax> GetParameters(StepWriter writer)
-        {
-            foreach (var parameter in base.GetParameters(writer))
-            {
-                yield return parameter;
-            }
-
-            yield return writer.GetItemSyntax(Point);
-            yield return writer.GetItemSyntax(Vector);
-        }
-
-        internal static StepLine CreateFromSyntaxList(StepBinder binder, StepSyntaxList syntaxList)
+        internal static StepLine CreateFromSyntaxList(StepBinder binder, StepSyntaxList syntaxList, int id)
         {
             var line = new StepLine();
+            line.SyntaxList = syntaxList;
+            line.Id = id;
             syntaxList.AssertListCount(3);
             line.Name = syntaxList.Values[0].GetStringValue();
             binder.BindValue(syntaxList.Values[1], v => line.Point = v.AsType<StepCartesianPoint>());

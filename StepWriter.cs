@@ -1,5 +1,6 @@
 ﻿using StepParser.Items;
 using StepParser.Syntax;
+using StepParser.ViewModel;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -13,57 +14,93 @@ namespace StepParser
         private bool _inlineReferences;
         private Dictionary<StepRepresentationItem, int> _itemMap;
         private XmlWriter _xmlWriter;
+        private List<StepRepresentationItem> _relatedItems = new List<StepRepresentationItem>();
 
         public StepWriter(StepFile stepFile, bool inlineReferences, XmlWriter xmlWriter)
         {
-            _file = stepFile;
-            _itemMap = new Dictionary<StepRepresentationItem, int>();
-            _inlineReferences = inlineReferences;
-            _xmlWriter = xmlWriter;
+            try
+            {
+                _file = stepFile;
+                _itemMap = new Dictionary<StepRepresentationItem, int>();
+                _inlineReferences = inlineReferences;
+                _xmlWriter = xmlWriter;
 
-            SetRelationShip();
+                SetRelationShip();
+            }
+            catch (Exception ex)
+            {
+                LogWriter.Instance.WriteErrorLog(ex);
+            }
         }
 
+        /// <summary>
+        /// Save
+        /// </summary>
         public void Save()
-        {            
-            // output header
-            WriteHeader();
-
-            // data section
-            // Write Parts Section
-            _xmlWriter.WriteStartElement("Parts");
-            foreach (var item in _file.Items)
+        {  
+            try
             {
-                if (item.ItemType == StepItemType.ShapeDefinitionRepresentation)
+                // output header
+                WriteHeader();
+
+                // data section
+                // Write Parts Section
+                _xmlWriter.WriteStartElement("Parts");
+                int countPart = 0;
+                List<StepRepresentationItem> _singleItems = GetSingleGroups(_relatedItems);
+                foreach (var item in _singleItems)
                 {
-                    item.WriteXML(_xmlWriter);
+                    if(item.RefParentItems != null)
+                    {
+                        foreach (var parentItem in item.RefParentItems)
+                        {
+                            foreach (var refParentItem in parentItem.RefParentItems)
+                            {
+                                if (refParentItem.GetStepItemTypeStr() == StepItemType.ShapeDefinitionRepresentation.ToString())
+                                {
+                                    refParentItem.WriteXML(_xmlWriter);
+                                    countPart++;
+                                }
+                            }
+                        }
+                    }                    
                 }
-            }
-            _xmlWriter.WriteEndElement();
+                _xmlWriter.WriteEndElement();
 
-            // Write Group Section
+                // Write Group Section
 
-            _xmlWriter.WriteStartElement("Structure");
-            var rootGroups = GetRootGroups();
-            foreach (var item in rootGroups)
-            {
-                WriteGroup(item);
-            }
-            _xmlWriter.WriteEndElement();
-
-            // Write Orders
-
-            _xmlWriter.WriteStartElement("OrderList");
-            foreach (var item in _file.Items)
-            {
-                if (item.ItemType == StepItemType.ProductDefinition)
+                _xmlWriter.WriteStartElement("Structure");
+                var rootGroups = GetRootGroups(_relatedItems);
+                foreach (var item in rootGroups)
                 {
-                    ((StepProductDefinition)item).WriteXMLOroderPart(_xmlWriter);
+                    if (item.ItemType == StepItemType.ProductDefinition)
+                    {
+                        ((StepProductDefinition)item).WriteXMLGroup(_xmlWriter);
+                    }
                 }
+                _xmlWriter.WriteEndElement();
+
+                // Write Orders
+
+                _xmlWriter.WriteStartElement("OrderList");
+                foreach (var item in rootGroups)
+                {
+                    if (item.ItemType == StepItemType.ProductDefinition)
+                    {
+                        ((StepProductDefinition)item).WriteXMLOrderPart(_xmlWriter);
+                    }
+                }
+                _xmlWriter.WriteEndElement();
             }
-            _xmlWriter.WriteEndElement();
+            catch (Exception ex)
+            {
+                LogWriter.Instance.WriteErrorLog(ex);
+            }
         }
 
+        /// <summary>
+        /// WriteHeader
+        /// </summary>
         private void WriteHeader()
         {
             _xmlWriter.WriteStartElement("BasicData");
@@ -80,154 +117,197 @@ namespace StepParser
             _xmlWriter.WriteString(value);
             _xmlWriter.WriteEndElement();
         }
-
-        private void WriteGroup(StepRepresentationItem item)
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private List<StepRepresentationItem> GetRootGroups(List<StepRepresentationItem> stepRepresentationItems)
         {
-            if (item.ItemType == StepItemType.ProductDefinition)
-            {
-                ((StepProductDefinition)item).WriteXMLGroup(_xmlWriter);
+            var rootGroups = new List<StepRepresentationItem>();
+
+            foreach (var item in stepRepresentationItems)
+            {               
+                if (item.ParentItems.Count == 0)
+                    rootGroups.Add(item);
             }
-        }
-
-        private List<StepProductDefinition> GetRootGroups()
-        {
-            var rootGroups = new List<StepProductDefinition>();
-
-            foreach (var item in _file.Items)
-            {
-                bool isRoot = true;
-                if (item.ItemType == StepItemType.ProductDefinition)
-                {
-                    foreach(var subItem in _file.Items)
-                    {
-                        if (subItem.ItemType == StepItemType.ProductDefinition)
-                        {
-                            if (((StepProductDefinition)subItem).HasProduct((StepProductDefinition)item))
-                            {
-                                isRoot = false;
-                            }
-                        }
-                    }
-                    if (isRoot == true)
-                    {
-                        rootGroups.Add((StepProductDefinition)item);
-                    }
-                }
-            }
-
             return rootGroups;
         }
 
+        /// <summary>
+        /// GetSigleGroups
+        /// </summary>
+        /// <param name="stepRepresentationItems"></param>
+        /// <returns></returns>
+        private List<StepRepresentationItem> GetSingleGroups(List<StepRepresentationItem> stepRepresentationItems)
+        {
+            var singleGroups = new List<StepRepresentationItem>();
+
+            foreach (var item in stepRepresentationItems)
+            {
+                if(item.ChildItems.Count == 0)
+                    singleGroups.Add(item);
+            }
+            return singleGroups;
+        }
+
+        /// <summary>
+        /// SetRelationShip
+        /// </summary>
         public void SetRelationShip()
         {
-            for(int idx = 0; idx < _file.Items.Count; idx++)
+            try
             {
-                if (_file.Items[idx].ItemType == StepItemType.ShapeDefinitionRepresentation)
+                List<StepRepresentationItem> stepStyleItems = GetStyledItems();
+                for (int idx = 0; idx < _file.Items.Count; idx++)
                 {
-                    var relationShip = GetShapeRelationShip((StepShapeDefinitionRepresentation)_file.Items[idx]);
-                    if (relationShip != null)
+                    StepRepresentationItem item = _file.Items[idx];
+                    UpdateBindStyleItems(item, stepStyleItems);
+                    if (item.GetStepItemTypeStr() == StepItemType.NextAssemblyUsageOccurrence.ToString())
                     {
-                        ((StepShapeDefinitionRepresentation)_file.Items[idx]).SetShapePresentationRelationShip(relationShip);
+                        ((StepNextAssemblyUsageOccrrence)item).Parent.ChildItems.Add(((StepNextAssemblyUsageOccrrence)item).Child);
+                        ((StepNextAssemblyUsageOccrrence)item).Child.ParentItems.Add(((StepNextAssemblyUsageOccrrence)item).Parent);
+                        AddRelatedItems(((StepNextAssemblyUsageOccrrence)item).Child);
+                        AddRelatedItems(((StepNextAssemblyUsageOccrrence)item).Parent);
                     }
-                    
+                    else if (item.GetStepItemTypeStr() == StepItemType.ShapeDefinitionRepresentation.ToString())
+                    {
+                        SetShapRelationShip(item, StepItemType.ShapeRepresentationRelationship);
+                    }
                 }
-                else if (_file.Items[idx].ItemType == StepItemType.AdvancedBrepShapeRepresentation)
-                {
-                    List<StepStyledItem> styledItems = GetStyledItems((StepAdvancedBrepShapeRepresentation)_file.Items[idx]);
-                    ((StepAdvancedBrepShapeRepresentation)_file.Items[idx]).SetStyledItems(styledItems);
-                }
-                else if (_file.Items[idx].ItemType == StepItemType.ProductDefinition)
-                {
-                    List<StepProductDefinition> nextComponents = GetNextComponent((StepProductDefinition)_file.Items[idx]);
-                    ((StepProductDefinition)_file.Items[idx]).Children = nextComponents;
-                }
+            }
+            catch (Exception ex)
+            {
+                LogWriter.Instance.WriteErrorLog(ex);
             }
             
         }
 
-        public StepShapeRepresentationRelationShip GetShapeRelationShip(StepShapeDefinitionRepresentation item)
+        /// <summary>
+        /// AddRelatedItems
+        /// </summary>
+        /// <param name="item"></param>
+        private void AddRelatedItems(StepRepresentationItem item)
+        {
+            if (_relatedItems.Find(x => x.Id == item.Id) == null)
+                _relatedItems.Add(item);
+        }
+
+        /// <summary>
+        /// SetShapRelationShip
+        /// </summary>
+        /// <param name="inputItem"></param>
+        /// <param name="itemType"></param>
+        public void SetShapRelationShip(StepRepresentationItem inputItem, StepItemType itemType)
         {
             foreach (var eachItem in _file.Items)
             {
-                if (eachItem.ItemType == StepItemType.ShapeRepresentationRelationship)
+                bool isGetRelationShip = false;
+                if (inputItem == eachItem)
+                    continue;
+                if (eachItem.GetStepItemTypeStr() == itemType.ToString())
                 {
-                    var itemInstance = (StepShapeRepresentationRelationShip)eachItem;
-                    if (itemInstance.UsedRepresentation != null && itemInstance.UsedRepresentation.Id == item.UsedRepresentation.Id)
+                    if(eachItem.RefChildItems.Count > 0)
                     {
-                        return itemInstance;
-                    }
-                }
-            }
-            return null;
-        }
-
-        public List<StepStyledItem> GetStyledItems(StepAdvancedBrepShapeRepresentation item)
-        {
-            var styledItems = new List<StepStyledItem>();
-            if (item.UsedSolidBrepList != null && item.UsedSolidBrepList.Count > 0)
-            {
-                foreach(var solidBrep in item.UsedSolidBrepList)
-                {
-                    foreach (var eachItem in _file.Items)
-                    {
-                        if (eachItem.ItemType == StepItemType.StyledItem)
+                        foreach (var refObj in eachItem.RefChildItems)
                         {
-                            var itemInstance = (StepStyledItem)eachItem;
-                            if (itemInstance.UsedSolidBrep != null && itemInstance.UsedSolidBrep.Id == solidBrep.Id)
+                            if(refObj.Value != null && refObj.Value.Count > 0)
                             {
-                                styledItems.Add(itemInstance);
+                                foreach (var refItem in refObj.Value)
+                                {
+                                    if(!isGetRelationShip)
+                                    {
+                                        foreach (var inputRefObj in inputItem.RefChildItems)
+                                        {
+                                            if (inputRefObj.Value != null && inputRefObj.Value.Count > 0)
+                                            {
+                                                if (inputRefObj.Value.Find(x => ((StepRepresentationItem)x).Id == ((StepRepresentationItem)refItem).Id) != null)
+                                                {
+                                                    isGetRelationShip = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        inputItem.AddRefObjs((StepRepresentationItem)refItem);
+                                        inputItem.ContainCrossRef = true; //Contains cross ref item
+                                        ((StepRepresentationItem)refItem).IsCrossRef = true;
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+        }
 
+        /// <summary>
+        /// UpdateBindStyleItems
+        /// </summary>
+        /// <param name="item"></param>
+        /// <param name="stepStyleItems"></param>
+        public void UpdateBindStyleItems(StepRepresentationItem item, List<StepRepresentationItem> stepStyleItems)
+        {
+            List<StepRepresentationItem> bindStyleItems = new List<StepRepresentationItem>();
+            foreach (var obj in item.RefChildItems)
+            {
+                if (obj.Value != null && obj.Value.Count > 0)
+                {
+                    foreach (var stepItem in stepStyleItems)
+                    {
+                        foreach (var objStepItem in stepItem.RefChildItems)
+                        {
+                            if (objStepItem.Value != null && objStepItem.Value.Count > 0)
+                            {
+                                foreach (var iStepItem in objStepItem.Value)
+                                {
+                                    if (obj.Value.Find(x => ((StepRepresentationItem)x).Id == ((StepRepresentationItem)iStepItem).Id) != null)
+                                    {
+                                        bindStyleItems.Add(stepItem);
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+
+                }
+            }
+            if (bindStyleItems.Count > 0)
+            {
+                foreach (var stepItem in bindStyleItems)
+                {
+                    item.AddRefObjs(stepItem);
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// GetStyledItems
+        /// </summary>
+        /// <returns></returns>
+        public List<StepRepresentationItem> GetStyledItems()
+        {
+            var styledItems = new List<StepRepresentationItem>();
+            foreach (var eachItem in _file.Items)
+            {
+                if (eachItem.GetStepItemTypeStr() == StepItemType.StyledItem.ToString())
+                {
+                    styledItems.Add(eachItem);
+                }
+            }
             return styledItems;
         }
 
-        public List<StepProductDefinition> GetNextComponent(StepProductDefinition item)
-        {
-            var nextComponents = new List<StepProductDefinition>();
-            foreach (var eachItem in _file.Items)
-            {
-                if (eachItem.ItemType == StepItemType.NextAssemblyUsageOccurrence)
-                {
-                    var itemInstance = (StepNextAssemblyUsageOccrrence)eachItem;
-                    if (itemInstance.Parent != null && itemInstance.Parent.Id == item.Id)
-                    {
-                        nextComponents.Add(itemInstance.Child);
-                    }
-                }
-            }
-            return nextComponents;
-        }
-
-        public StepSyntax GetItemSyntax(StepRepresentationItem item)
-        {
-            if (_inlineReferences)
-            {
-                var parameters = new StepSyntaxList(-1, -1, item.GetParameters(this));
-                return new StepSimpleItemSyntax(item.ItemType.GetItemTypeString(), parameters, item.Id);
-            }
-            else
-            {
-                return new StepEntityInstanceReferenceSyntax(_itemMap[item]);
-            }
-        }
-
-        public StepSyntax GetItemSyntaxOrAuto(StepRepresentationItem item)
-        {
-            return item == null
-                ? new StepAutoSyntax()
-                : GetItemSyntax(item);
-        }
-
-        public static StepEnumerationValueSyntax GetBooleanSyntax(bool value)
-        {
-            var text = value ? "T" : "F";
-            return new StepEnumerationValueSyntax(text);
-        }
-
+        /// <summary>
+        /// SplitStringIntoParts
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="maxLength"></param>
+        /// <returns></returns>
         internal static IEnumerable<string> SplitStringIntoParts(string str, int maxLength = 256)
         {
             var parts = new List<string>();
@@ -247,11 +327,6 @@ namespace StepParser
             }
 
             return parts;
-        }
-
-        private string toCamel(string input)
-        {
-            return new CultureInfo("en").TextInfo.ToTitleCase(input.ToLower().Replace("_", " ")).Replace(" ", "");
         }
     }
 }

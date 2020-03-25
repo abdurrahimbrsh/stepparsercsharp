@@ -17,31 +17,27 @@ namespace StepParser.Items
         {
         }
 
-        internal override IEnumerable<StepSyntax> GetParameters(StepWriter writer)
-        {
-            foreach (var parameter in base.GetParameters(writer))
-            {
-                yield return parameter;
-            }
-        }
         internal static StepSurfaceStyleUsage CreateFromSyntaxList(StepBinder binder, StepSyntaxList syntaxList, int id)
         {
             var surfaceStyleUsage = new StepSurfaceStyleUsage();
+            surfaceStyleUsage.SyntaxList = syntaxList;
             syntaxList.AssertListCount(2);
             surfaceStyleUsage.Id = id;
             surfaceStyleUsage.Side = syntaxList.Values[0].GetEnumerationValue();
 
-            binder.BindValue(syntaxList.Values[1], v => surfaceStyleUsage.SurfaceSideStyle = v.AsType<StepSurfaceSideStyle>());
-
+            //binder.BindValue(syntaxList.Values[1], v => surfaceStyleUsage.SurfaceSideStyle = v.AsType<StepSurfaceSideStyle>());
+            surfaceStyleUsage.BindSyntaxList(binder, syntaxList, 1);
             return surfaceStyleUsage;
         }
 
         internal override void WriteXML(XmlWriter writer)
         {
+            writer.WriteStartElement("SurfaceStyleUsage");
             writer.WriteAttributeString("type", ItemType.GetItemTypeString());
             writer.WriteAttributeString("side", Side);
-            writer.WriteStartElement("Styles");
-            SurfaceSideStyle.WriteXML(writer);
+            //writer.WriteStartElement("Styles");
+            //SurfaceSideStyle.WriteXML(writer);
+            base.WriteXML(writer);
             writer.WriteEndElement();
         }
     }
