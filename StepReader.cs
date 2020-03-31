@@ -20,6 +20,8 @@ namespace StepParser
             _file = new StepFile();
             var tokenizer = new StepTokenizer(stream);
             _lexer = new StepLexer(tokenizer.GetTokens());
+            if (tokenizer.IsFailed)
+                throw new Exception($"Unexpected parse character");
         }
 
         public StepFile ReadFile()
