@@ -1,4 +1,5 @@
 ﻿using StepParser.Tokens;
+using StepParser.ViewModel;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -178,6 +179,7 @@ namespace StepParser
                 }
                 else
                 {
+                    LogWriter.Instance.WriteErrorLog(string.Format("Unexpected character {0} line{1}, col{2} \nCurrent string: {3}", c.ToString(), _currentLineNumber, _currentColumn, _currentLine));
                     throw new StepReadException($"Unexpected character '{c}'", _currentLineNumber, _currentColumn);
                 }
 
