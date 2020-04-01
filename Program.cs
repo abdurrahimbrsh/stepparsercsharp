@@ -78,7 +78,7 @@ namespace StepParser
                 string fullPath = Path.GetFullPath(fileInput);
                 string onlyPath = Directory.GetParent(fullPath).FullName;
                 fileName = Path.GetFileNameWithoutExtension(fileInput);
-                Console.WriteLine("Loading STP file... " + fileName);
+                Console.WriteLine("\nLoading STP file... " + fileName);
                 LogWriter.Instance.WriteInfoLog("Loading STP file... " + fileName);
                 StepFile stepFile;
                 using (FileStream fs = new FileStream(fullPath, FileMode.Open))
@@ -97,7 +97,7 @@ namespace StepParser
                     IndentChars = "    ",
                     OmitXmlDeclaration = false,
                     CloseOutput = false,
-                    Encoding = Encoding.Unicode
+                    Encoding = Encoding.UTF8
                 };
                 XmlWriter xmlWriter = XmlWriter.Create(onlyPath + "/" + fileName + ".xml", settings);
                 StepWriter stepWriter = new StepWriter(stepFile, false, xmlWriter);
