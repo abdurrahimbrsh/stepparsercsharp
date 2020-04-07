@@ -2,7 +2,7 @@
   "profiles": {
     "StepParser": {
       "commandName": "Project",
-      "commandLineArgs": "\"E:\\PROJECTS\\OUTSOURCE\\step_parser_test\\Documents\" 2",
+      "commandLineArgs": "\"E:\\PROJECTS\\OUTSOURCE\\step_parser_test\\InputA\\Testbaugruppe_27.03.2020_00.stp\"",
       "nativeDebugging": true
     }
   }

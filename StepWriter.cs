@@ -47,8 +47,8 @@ namespace StepParser
                 // Write Parts Section
                 _xmlWriter.WriteStartElement("Parts");
                 int countPart = 0;
-                List<StepRepresentationItem> _singleItems = GetSingleGroups(_relatedItems);
-                foreach (var item in _singleItems)
+                //List<StepRepresentationItem> _singleItems = GetSingleGroups(_relatedItems);
+                foreach (var item in _relatedItems)
                 {
                     if(item.RefParentItems != null)
                     {
