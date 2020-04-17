@@ -105,6 +105,13 @@ namespace StepParser
         {
             _xmlWriter.WriteStartElement("BasicData");
             WriteXmlElement("FileName", _file.Name);
+
+            WriteXmlElement("Author", _file.Author);
+            WriteXmlElement("Organization", _file.Organization);
+            WriteXmlElement("PreprocessorVersion", _file.PreprocessorVersion);
+            WriteXmlElement("OriginatingSystem", _file.OriginatingSystem);
+            WriteXmlElement("Authorization", _file.Authorization);
+
             WriteXmlElement("ISO", StepFile.MagicHeader);
             WriteXmlElement("Standard", _file.Description);
             WriteXmlElement("DateTime", _file.Timestamp.ToString());
