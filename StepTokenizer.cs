@@ -1,4 +1,5 @@
 ﻿using StepParser.Tokens;
+using StepParser.ViewModel;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,9 +15,12 @@ namespace StepParser
         private int _offset;
         private int _currentLineNumber;
         private int _currentColumn;
-
         public int CurrentLine => _currentLineNumber;
         public int CurrentColumn => _currentColumn;
+
+
+        private bool _isFailed = false;
+        public bool IsFailed { get => _isFailed; set => _isFailed = value; }
 
         public StepTokenizer(Stream stream)
         {
@@ -178,7 +182,11 @@ namespace StepParser
                 }
                 else
                 {
+                    LogWriter.Instance.WriteErrorLog(string.Format("Unexpected character {0} line {1}, col {2} \nCurrent string: {3}", c.ToString(), _currentLineNumber, _currentColumn, _currentLine));
+                    _isFailed = true;
                     throw new StepReadException($"Unexpected character '{c}'", _currentLineNumber, _currentColumn);
+                    //Advance();
+                    //yield return new StepStringToken(c.ToString(), tokenLine, tokenColumn);
                 }
 
                 SwallowWhitespace();
@@ -297,6 +305,11 @@ namespace StepParser
             return c == ',';
         }
 
+        private bool IsSpace(char c)
+        {
+            return c == ' ';
+        }
+
         private bool IsKeywordCharacter(char c)
         {
             return IsUpperOrDigit(c)
@@ -376,9 +389,11 @@ namespace StepParser
                 {
                     // maybe the end
                     wasApostropheLast = true;
+                    sb.Append(c);//Tien added
                     Advance();
                 }
-                else if (!IsApostrophe(c) && wasApostropheLast)
+                else if (!IsApostrophe(c) && wasApostropheLast &&
+                    (IsRightParen(c) || IsComma(c)))
                 {
                     // end of string
                     break;
@@ -404,6 +419,10 @@ namespace StepParser
             }
 
             var str = sb.ToString();
+            if (!string.IsNullOrEmpty(str) && IsApostrophe(str[str.Length - 1]))
+                str = str.Remove(str.Length - 1);//Remove last ' character
+            if (!string.IsNullOrEmpty(str) && str.Length >= 2 && IsApostrophe(str[str.Length - 2]) && IsSpace(str[str.Length - 1]))
+                str = str.Remove(str.Length - 2);//Remove last ' character
             return new StepStringToken(str, tokenLine, tokenColumn);
         }
 

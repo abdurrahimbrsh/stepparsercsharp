@@ -1,5 +1,6 @@
 ﻿using StepParser.Items;
 using StepParser.Syntax;
+using StepParser.ViewModel;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,6 +20,8 @@ namespace StepParser
             _file = new StepFile();
             var tokenizer = new StepTokenizer(stream);
             _lexer = new StepLexer(tokenizer.GetTokens());
+            if (tokenizer.IsFailed)
+                throw new Exception($"Unexpected parse character");
         }
 
         public StepFile ReadFile()
@@ -29,7 +32,7 @@ namespace StepParser
                 ApplyHeaderMacro(headerMacro);
             }
 
-            var itemMap = new Dictionary<int, StepRepresentationItem>();
+            var itemMap = new Dictionary<int, List<StepRepresentationItem>>();
             var binder = new StepBinder(itemMap);
             StepRepresentationItem.UnsupportedItemTypes.Clear();
             foreach (var itemInstance in fileSyntax.Data.ItemInstances)
@@ -38,12 +41,23 @@ namespace StepParser
                 {
                     throw new StepReadException("Duplicate item instance", itemInstance.Line, itemInstance.Column);
                 }
-
-                var item = StepRepresentationItem.FromTypedParameter(binder, itemInstance.SimpleItemInstance, itemInstance.Id);
-                if (item != null)
+                List<StepRepresentationItem> items = new List<StepRepresentationItem>();
+                if (itemInstance.SimpleItemInstance is StepSimpleItemSyntax)
                 {
-                    itemMap.Add(itemInstance.Id, item);
-                    _file.Items.Add(item);
+                    var item = StepRepresentationItem.FromTypedParameterToItem(binder, itemInstance.SimpleItemInstance, itemInstance.Id);
+                    if (item != null)
+                        items.Add(item);
+
+                }
+                else if (itemInstance.SimpleItemInstance is StepComplexItemSyntax)
+                    items = StepRepresentationItem.FromTypedParameterToItems(binder, itemInstance.SimpleItemInstance, itemInstance.Id);
+                else
+                    LogWriter.Instance.WriteErrorLog("Unsupported step item syntax " + itemInstance.SimpleItemInstance.GetType().Name);
+                if (items.Count > 0)
+                {
+                    itemMap.Add(itemInstance.Id, items);
+                    foreach(var item in items)
+                        _file.Items.Add(item);
                 }
             }
 
@@ -82,7 +96,7 @@ namespace StepParser
         {
             valueList.AssertListCount(7);
             _file.Name = valueList.Values[0].GetStringValue();
-            _file.Timestamp = valueList.Values[1].GetDateTimeValue();
+            _file.Timestamp = valueList.Values[1].GetStringValue();
             _file.Author = valueList.Values[2].GetConcatenatedStringValue();
             _file.Organization = valueList.Values[3].GetConcatenatedStringValue();
             _file.PreprocessorVersion = valueList.Values[4].GetStringValue();

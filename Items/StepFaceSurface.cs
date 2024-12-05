@@ -1,12 +1,13 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Xml;
 using StepParser.Syntax;
 
 namespace StepParser.Items
 {
-    public abstract class StepFaceSurface : StepFace
+    public class StepFaceSurface : StepFace
     {
-        public StepSurface FaceGeometry { get; set; }
+        public override StepItemType ItemType => StepItemType.FaceSurface;
 
         public bool SameSense { get; set; }
 
@@ -15,26 +16,25 @@ namespace StepParser.Items
         {
         }
 
-        internal override IEnumerable<StepSyntax> GetParameters(StepWriter writer)
+        internal static StepFaceSurface CreateFromSyntaxList(StepBinder binder, StepSyntaxList syntaxList, int id)
         {
-            foreach (var parameter in base.GetParameters(writer))
-            {
-                yield return parameter;
-            }
+            var face = new StepFaceSurface(string.Empty);
+            face.SyntaxList = syntaxList;
+            syntaxList.AssertListCount(4);
+            face.Id = id;
+            face.Name = syntaxList.Values[0].GetStringValue();
+            face.BindSyntaxList(binder, syntaxList);
+            face.SameSense = syntaxList.Values[3].GetBooleanValue();
 
-            yield return writer.GetItemSyntax(FaceGeometry);
-            yield return StepWriter.GetBooleanSyntax(!SameSense);
+            return face;
         }
 
         internal override void WriteXML(XmlWriter writer)
-        {            
-            if (FaceGeometry != null)
-            {
-                writer.WriteStartElement("Surface");
-                writer.WriteAttributeString("id", '#' + FaceGeometry.Id.ToString());
-                FaceGeometry.WriteXML(writer);
-                writer.WriteEndElement();
-            }            
+        {
+            writer.WriteStartElement(ItemType.GetItemTypeElementString());
+            writer.WriteAttributeString("id", '#' + Id.ToString());
+            base.WriteXML(writer);
+            writer.WriteEndElement();
         }
     }
 }
